@@ -300,6 +300,7 @@
     var readings = global.SCIMAP.rasterLayers().map(function (layer) {
       return {
         key: layer.key, label: layer.label, units: layer.units,
+        classes: layer.classes || null,
         visible: !!global.SCIMAP.state.visible[layer.key],
         value: global.SCIMAP.sample(layer.key, latlng.lat, latlng.lng)
       };
@@ -353,14 +354,18 @@
    * so toDataURL is not blocked.
    */
   //: longest side in pixels for each offered export size
-  var IMAGE_SIZES = {screen: 1600, print: 4000};
+  // "report" is the maps in the printout and the Markdown report: about 300 dpi
+  // across a printed page, and drawn at that size even from a larger grid.
+  var IMAGE_SIZES = {screen: 1600, print: 4000, report: 2400};
+  var EXACT_SIZES = {report: true};
 
   /** Pixels per grid cell for a named size, never below 1:1. */
   function imageScale(size) {
     var grid = global.SCIMAP_GRID;
     var target = IMAGE_SIZES[size];
     if (!target) return 1;
-    return Math.max(1, target / Math.max(grid.width, grid.height));
+    var fit = target / Math.max(grid.width, grid.height);
+    return EXACT_SIZES[size] ? fit : Math.max(1, fit);
   }
 
   /** What a given size actually produces, for the UI to state up front. */
@@ -378,8 +383,13 @@
    * taints it and toDataURL throws; everything here is generated in JS and
    * therefore clean. The raster is upscaled from the grid because the tiles
    * cannot be read back — the UI states the true cell size so nobody mistakes
-   * the pixel count for new detail. */
-  function renderStaticMap(size) {
+   * the pixel count for new detail.
+   *
+   * *options.layers* draws those raster layers, bottom first, instead of the
+   * ones ticked on screen: the printed report and the Markdown export draw
+   * each layer on a map of its own. */
+  function renderStaticMap(size, options) {
+    options = options || {};
     var grid = global.SCIMAP_GRID;
     var scale = imageScale(size);
     var width = Math.round(grid.width * scale);
@@ -427,7 +437,7 @@
       ctx.drawImage(base, 0, 0);
     }
 
-    global.SCIMAP.drawOrder().forEach(function (layer) {
+    (options.layers || global.SCIMAP.drawOrder()).forEach(function (layer) {
       var payload = (global.SCIMAP_PAYLOAD || {})[layer.key];
       if (!payload) return;
       var rgba = global.SCIMAP.colourise(
@@ -445,11 +455,18 @@
       ctx.globalAlpha = 1;
     });
 
-    out.imageSmoothingEnabled = !global.SCIMAP.state.pixelated;
+    // Shrinking always smooths: dropping cells instead would alias the map.
+    out.imageSmoothingEnabled = scale < 1 || !global.SCIMAP.state.pixelated;
+    out.imageSmoothingQuality = 'high';
     out.drawImage(stack, 0, 0, width, height);
-    drawVectorsOnCanvas(out, grid, scale);
-    drawScaleBar(out, width, height, scale);
-    return canvas.toDataURL('image/png');
+    // Lines, labels and the scale bar keep their size relative to the image,
+    // whatever the grid's: as they were on a 1024-pixel grid.
+    var weight = Math.max(width, height) / 1024;
+    drawVectorsOnCanvas(out, grid, scale, weight);
+    drawScaleBar(out, width, height, scale, weight);
+    // PNG by default. The report's maps are JPEG (options.jpeg): a risk
+    // surface is noise to PNG's compression, about 10 MB a map at report size.
+    return options.jpeg ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
   }
 
   /** A scale bar burned into the exported image.
@@ -458,7 +475,8 @@
    * Web Mercator metres are inflated by 1/cos(latitude), so ground distance is
    * the projected distance times mercatorScale — the same correction the 3D
    * scene applies to its horizontal extents. */
-  function drawScaleBar(ctx, width, height, scale) {
+  function drawScaleBar(ctx, width, height, scale, weight) {
+    weight = weight || scale;
     var grid = global.SCIMAP_GRID;
     var groundPerPixel = grid.pixelSize3857[0] * (grid.mercatorScale || 1) / scale;
     if (!isFinite(groundPerPixel) || groundPerPixel <= 0) return;
@@ -473,9 +491,9 @@
 
     var barPx = rounded / groundPerPixel;
     var label = rounded >= 1000 ? (rounded / 1000) + ' km' : rounded + ' m';
-    var pad = Math.round(14 * scale);
-    var thickness = Math.max(3, Math.round(3 * scale));
-    var font = Math.max(11, Math.round(11 * scale));
+    var pad = Math.round(14 * weight);
+    var thickness = Math.max(3, Math.round(3 * weight));
+    var font = Math.max(11, Math.round(11 * weight));
     var x = pad;
     var y = height - pad - thickness - font;
 
@@ -496,9 +514,10 @@
     ctx.restore();
   }
 
-  function drawVectorsOnCanvas(ctx, grid, scale) {
+  function drawVectorsOnCanvas(ctx, grid, scale, weight) {
     var bounds = grid.bounds3857;
     scale = scale || 1;
+    weight = weight || scale;
     function toPixel(lng, lat) {
       var x = lng * 6378137.0 * Math.PI / 180;
       var clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
@@ -534,15 +553,15 @@
     var shown = global.SCIMAP.state.vectors;
     stroke(shown.catchment ? data.catchment : null, function () {
       ctx.strokeStyle = '#333333';
-      ctx.lineWidth = 2 * scale;
-      ctx.setLineDash([7 * scale, 5 * scale]);
+      ctx.lineWidth = 2 * weight;
+      ctx.setLineDash([7 * weight, 5 * weight]);
     });
     ctx.setLineDash([]);
     stroke(shown.streams ? data.streams : null, function (feature) {
       var norm = feature.properties.riskNorm;
       if (norm === null || norm === undefined) norm = 0;
       ctx.strokeStyle = global.SCIMAP.rampColour('plasma', norm);
-      ctx.lineWidth = (1 + norm * 3) * scale;
+      ctx.lineWidth = (1 + norm * 3) * weight;
       ctx.lineCap = 'round';
     });
 
@@ -551,15 +570,15 @@
     ctx.lineJoin = 'round';
     stroke(areas, function () {
       ctx.strokeStyle = 'rgba(11, 16, 22, 0.6)';
-      ctx.lineWidth = 4.5 * scale;
+      ctx.lineWidth = 4.5 * weight;
     });
     stroke(areas, function (feature) {
       ctx.strokeStyle = global.SCIMAP.driverOf(feature.properties.driver).colour;
-      ctx.lineWidth = 2.2 * scale;
+      ctx.lineWidth = 2.2 * weight;
     });
     // Numbered as on screen, so the printed map and the printed table agree.
-    var radius = 9 * scale;
-    ctx.font = '700 ' + Math.round(11 * scale) + 'px system-ui, -apple-system, sans-serif';
+    var radius = 9 * weight;
+    ctx.font = '700 ' + Math.round(11 * weight) + 'px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     (areas.features || []).forEach(function (feature) {
@@ -570,11 +589,11 @@
       ctx.arc(at[0], at[1], radius, 0, Math.PI * 2);
       ctx.fillStyle = global.SCIMAP.driverOf(props.driver).colour;
       ctx.fill();
-      ctx.lineWidth = 1.5 * scale;
+      ctx.lineWidth = 1.5 * weight;
       ctx.strokeStyle = '#ffffff';
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(String(props.rank), at[0], at[1] + 0.5 * scale);
+      ctx.fillText(String(props.rank), at[0], at[1] + 0.5 * weight);
     });
   }
   function reset() { if (map) map.fitBounds(bounds(), {padding: [24, 24]}); }

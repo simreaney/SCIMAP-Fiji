@@ -18,13 +18,13 @@ html, body { height: auto; overflow: visible; background: #fff; color: #16181c; 
 
 /* Swatches, bars and badges are backgrounds, which browsers drop from print
    by default; without them the key and the scores lose their meaning. */
-.driver-swatch, .score-track, .score-bar, .area-rank {
+.driver-swatch, .score-track, .score-bar, .area-rank, .legend, .legend-chip {
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .table-scroll { overflow: visible; }
 .area-table tr { page-break-inside: avoid; }
 
-#loading, .tabs, #theme, #print, .rail-buttons, .opacity,
+#loading, .tabs, #theme, #print, #print-menu, .rail-buttons, .opacity,
 #probe, #reach, #scene-building, #scene-unavailable,
 .leaflet-control-zoom, .leaflet-control-layers, .rail-note,
 .leaflet-control-attribution,
@@ -52,17 +52,32 @@ main { display: block; height: auto; }
 #rail > section { order: 0 !important; }
 #stage { position: static; }
 .view { position: static; display: block !important; page-break-before: always; padding: 0; }
-#view-map { page-break-before: avoid; }
+/* Not "avoid": that bound the legends above to the map, and when the two did
+   not fit under the title together both moved on, leaving page 1 blank. */
+#view-map { page-break-before: auto; }
 #view-scene { display: none !important; }   /* a live WebGL canvas prints unreliably */
 
 /* The live Leaflet map is replaced by a still composited from the embedded
    data: a resized Leaflet requests its new tiles too late to be printed. */
 #map2d { display: none !important; }
 #print-map {
-  display: block; width: 100%; height: auto;
-  max-height: 150mm; object-fit: contain;
+  display: block; width: auto; height: auto; max-width: 100%; margin: 0 auto;
+  max-height: 130mm;
   page-break-inside: avoid; border: 1px solid #e1e0d9;
 }
+/* Then each result layer on a map of its own, two to a page. */
+#print-layers { display: block; }
+.print-heading { page-break-before: always; margin: 0 0 4mm; font-size: 14pt; }
+.print-figure { margin: 0 0 7mm; page-break-inside: avoid; }
+.print-figure h3 { font-size: 11pt; margin: 0 0 2mm; }
+.print-figure img {
+  display: block; width: auto; height: auto; max-width: 100%; max-height: 100mm;
+  margin: 0 auto; border: 1px solid #e1e0d9;
+}
+.print-key { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin-top: 2mm; }
+.print-stream-key span { font-size: 8pt; color: #52514e; }
+.print-stream-key .vector-legend { margin: 0; }
+.print-caption { font-size: 8.5pt; color: #52514e; margin: 1.5mm 0 0; }
 .panel { max-width: none; border: 1px solid #e1e0d9; page-break-inside: avoid; margin-bottom: 5mm; }
 .layer { page-break-inside: avoid; }
 

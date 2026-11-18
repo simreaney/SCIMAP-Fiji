@@ -3,7 +3,8 @@
 These are committed rather than fetched from a CDN so a generated dashboard works with no
 internet connection, and so archived result folders keep working years later.
 
-Re-download with `qgis_plugin/web/fetch_vendor.sh`, then verify against the checksums below.
+Re-download with `scripts/fetch_web_vendor.sh` (kept outside the plugin, since plugins.qgis.org
+flags shell scripts in a plugin package), then verify against the checksums below.
 
 ## Leaflet 1.9.4 — BSD-2-Clause
 Source: https://unpkg.com/leaflet@1.9.4/dist/

@@ -25,13 +25,29 @@
     <button data-view="map" class="on">Map</button>
     <button data-view="scene">3D terrain</button>
     <button data-view="charts">Analysis</button>
+    <button data-view="data">Data</button>
     <button data-view="about">Provenance</button>
   </nav>
   <div class="masthead-meta">
     <span id="organisation"></span>
     <span id="generated"></span>
     <button id="theme" class="ghost">Light</button>
-    <button id="print" class="ghost">Print</button>
+    <span class="print-anchor">
+      <button id="print" class="ghost" aria-haspopup="true" aria-expanded="false"
+              aria-controls="print-menu">Print</button>
+      <div id="print-menu" class="print-menu gone" role="dialog" aria-label="Print options">
+        <label class="check"><input type="checkbox" id="print-all-maps" checked>
+          <span>A map of every result layer</span></label>
+        <p class="control-note">Each layer on a map of its own, with its legend,
+          after the map as it is on screen. Untick for that map alone.</p>
+        <div class="print-menu-buttons">
+          <button id="print-go" class="ghost">Print or save as PDF</button>
+          <button id="save-markdown" class="ghost">Save as Markdown</button>
+        </div>
+        <p class="control-note">Markdown comes as a zip: the report, and its maps
+          as images beside it.</p>
+      </div>
+    </span>
   </div>
 </header>
 
@@ -114,6 +130,8 @@
       <div id="map2d"></div>
       <!-- Printed instead of the live map: see renderStaticMap in scimap-map2d.js -->
       <img id="print-map" alt="Map of the catchment showing the result layers">
+      <!-- Printed after it: each result layer on a map of its own (scimap-report.js) -->
+      <div id="print-layers"></div>
       <div id="probe" class="gone" aria-live="polite"></div>
       <div id="reach" class="gone"></div>
     </section>
@@ -179,7 +197,7 @@
     <section id="view-data" class="view scroll">
       <div class="panel">
         <h2>Download the data</h2>
-        <p class="panel-note">Full-resolution results in their original projection, plus this dashboard's own derived files. Everything here is yours to reuse.</p>
+        <p class="panel-note">This dashboard was exported without the data bundle.</p>
         <div id="download-list"></div>
       </div>
     </section>
@@ -212,6 +230,7 @@
 <script src="data/layers.js"></script>
 <script src="data/layer_erosion.js"></script>
 <script src="data/layer_connectivity.js"></script>
+<script src="data/layer_erosion_x_connectivity.js"></script>
 <script src="data/vectors.js"></script>
 <script src="data/charts.js"></script>
 
@@ -220,6 +239,7 @@
 <script src="assets/scimap-map2d.js"></script>
 <script src="assets/scimap-usdz.js"></script>
 <script src="assets/scimap-map3d.js"></script>
+<script src="assets/scimap-report.js"></script>
 <script src="assets/scimap-ui.js"></script>
 </body>
 </html>

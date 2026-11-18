@@ -274,16 +274,19 @@
     // exported PNG comes out unflipped and the risk sits mirrored north-south
     // over the terrain, crossing ridges instead of following valleys.
     // Flipping the rows here is the one form both the renderer and the
-    // exporter agree on.
+    // exporter agree on. In place, a row at a time: at full resolution a
+    // second copy of the drape would be another 64 MB.
     var rowBytes = grid.width * 4;
-    var flipped = new Uint8Array(count * 4);
-    for (var row = 0; row < grid.height; row++) {
-      flipped.set(rgba.subarray(row * rowBytes, (row + 1) * rowBytes),
-                  (grid.height - 1 - row) * rowBytes);
+    var spare = new Uint8Array(rowBytes);
+    for (var top = 0, bottom = grid.height - 1; top < bottom; top++, bottom--) {
+      spare.set(rgba.subarray(top * rowBytes, (top + 1) * rowBytes));
+      rgba.copyWithin(top * rowBytes, bottom * rowBytes, (bottom + 1) * rowBytes);
+      rgba.set(spare, bottom * rowBytes);
     }
+    var fitted = fitTexture(rgba, grid.width, grid.height);
 
     // DataTexture, never TextureLoader - see the header.
-    var texture = new THREE.DataTexture(flipped, grid.width, grid.height,
+    var texture = new THREE.DataTexture(fitted.data, fitted.width, fitted.height,
                                         THREE.RGBAFormat);
     texture.encoding = THREE.sRGBEncoding;
     texture.flipY = false;
@@ -292,6 +295,34 @@
     texture.generateMipmaps = false;
     texture.needsUpdate = true;
     return texture;
+  }
+
+  /** *rgba* as it is, or averaged down to the largest texture this GPU takes.
+   *
+   * A full-resolution export can be 4096 pixels across; a GPU that takes less
+   * would otherwise show no drape at all. */
+  function fitTexture(rgba, width, height) {
+    var limit = renderer && renderer.capabilities ? renderer.capabilities.maxTextureSize : 0;
+    if (!limit || (width <= limit && height <= limit)) {
+      return {data: rgba, width: width, height: height};
+    }
+    var factor = Math.ceil(Math.max(width, height) / limit);
+    var outWidth = Math.ceil(width / factor), outHeight = Math.ceil(height / factor);
+    var out = new Uint8Array(outWidth * outHeight * 4);
+    for (var y = 0; y < outHeight; y++) {
+      for (var x = 0; x < outWidth; x++) {
+        var r = 0, g = 0, b = 0, a = 0, n = 0;
+        for (var dy = 0; dy < factor && y * factor + dy < height; dy++) {
+          var at = ((y * factor + dy) * width + x * factor) * 4;
+          for (var dx = 0; dx < factor && x * factor + dx < width; dx++, at += 4) {
+            r += rgba[at]; g += rgba[at + 1]; b += rgba[at + 2]; a += rgba[at + 3]; n++;
+          }
+        }
+        var to = (y * outWidth + x) * 4;
+        out[to] = r / n; out[to + 1] = g / n; out[to + 2] = b / n; out[to + 3] = a / n;
+      }
+    }
+    return {data: out, width: outWidth, height: outHeight};
   }
 
   //: the drape no longer matches the switches, and is rebuilt when next seen
@@ -378,6 +409,20 @@
     return line;
   }
 
+  //: how many widths the stream network is drawn in: one draw call each
+  var STREAM_LEVELS = 12;
+
+  /** Many separate line segments ([x1,y1,z1, x2,y2,z2, ...]) as one fat line. */
+  function fatSegments(flat, colours, options) {
+    var geometry = new THREE.LineSegmentsGeometry();
+    geometry.setPositions(flat);
+    if (colours) geometry.setColors(colours);
+    var material = new THREE.LineMaterial(options);
+    material.resolution.set(hostWidth(), hostHeight());
+    fatLines.push(material);
+    return new THREE.LineSegments2(geometry, material);
+  }
+
   function buildStreams() {
     var data = (global.SCIMAP_VECTORS || {}).streams;
     streamGroup = new THREE.Group();
@@ -389,32 +434,45 @@
 
     var offset = surfaceOffset();
     var paths = [];
+    // Reaches are batched by risk into STREAM_LEVELS lines, each one draw
+    // call, rather than a line apiece: a whole network is tens of thousands of
+    // reaches. Width and opacity step with the level; colour is the reach's own.
+    var levels = [];
+    var lut = global.SCIMAP.rampLut('plasma');
 
     data.features.forEach(function (feature) {
       var coords = feature.geometry.coordinates;
       if (!coords || coords.length < 2) return;
-      var points = [], flat = [], colours = [];
       var norm = feature.properties.riskNorm;
       if (norm === null || norm === undefined) norm = 0;
-      var lut = global.SCIMAP.rampLut('plasma');
       var slot = Math.max(0, Math.min(255, Math.round(norm * 255))) * 3;
-      var r = lut[slot] / 255, g = lut[slot + 1] / 255, b = lut[slot + 2] / 255;
+      var red = lut[slot] / 255, green = lut[slot + 1] / 255, blue = lut[slot + 2] / 255;
 
+      var points = [];
       for (var i = 0; i < coords.length; i++) {
         var p = lift(coords[i][1], coords[i][0]);
-        if (!isFinite(p.z)) continue;
-        points.push(p);
-        flat.push(p.x, p.y, p.z + offset);
-        colours.push(r, g, b);
+        if (isFinite(p.z)) points.push(p);
       }
       if (points.length < 2) return;
 
-      features.streams.add(fatLine(flat, colours, {
-        vertexColors: true, linewidth: 1.5 + norm * 3.5,
-        transparent: true, opacity: 0.55 + norm * 0.45, dashed: false
-      }));
-
+      var level = Math.round(norm * (STREAM_LEVELS - 1));
+      var batch = levels[level] || (levels[level] = {flat: [], colours: []});
+      for (var j = 1; j < points.length; j++) {
+        var a = points[j - 1], b = points[j];
+        batch.flat.push(a.x, a.y, a.z + offset, b.x, b.y, b.z + offset);
+        batch.colours.push(red, green, blue, red, green, blue);
+      }
       paths.push({points: points, risk: norm, offset: offset});
+    });
+
+    // Riskier levels last, so they draw over the rest where reaches meet.
+    levels.forEach(function (batch, level) {
+      if (!batch) return;
+      var step = level / (STREAM_LEVELS - 1);
+      features.streams.add(fatSegments(batch.flat, batch.colours, {
+        vertexColors: true, linewidth: 1.5 + step * 3.5,
+        transparent: true, opacity: 0.55 + step * 0.45
+      }));
     });
 
     buildFlow(paths);

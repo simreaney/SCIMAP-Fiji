@@ -40,8 +40,9 @@
       // layers it actually managed to add.
       global.SCIMAP_MAP2D.create('map2d');
       buildVectorToggles();
-      // Compose the printable still now, while the page is idle.
-      setTimeout(prepareForPrint, 400);
+      // Compose the printable still now, while the page is idle. The map of
+      // each layer waits for a print: there may be a dozen of them.
+      setTimeout(prepareMainMap, 400);
       setView(initialView());
       $('loading').classList.add('gone');
     } catch (error) {
@@ -94,15 +95,8 @@
       head.appendChild(label);
       row.appendChild(head);
 
-      var swatch = make('div', 'legend');
-      swatch.style.background = global.SCIMAP.rampCss(layer.ramp);
-      row.appendChild(swatch);
-
-      var scale = make('div', 'legend-scale');
-      scale.appendChild(make('span', null, global.SCIMAP.formatValue(layer.vmin, 3)));
-      if (layer.units) scale.appendChild(make('span', 'legend-units', layer.units));
-      scale.appendChild(make('span', null, global.SCIMAP.formatValue(layer.vmax, 3)));
-      row.appendChild(scale);
+      // A ramp and its range, or for a categorical layer one swatch per class.
+      row.appendChild(global.SCIMAP_REPORT.layerLegend(layer));
 
       var slider = document.createElement('input');
       slider.type = 'range'; slider.min = 0; slider.max = 1; slider.step = 0.05;
@@ -127,11 +121,14 @@
     host.innerHTML = '';
     var labels = {
       priorityAreas: 'Critical source areas',
-      streams: 'Stream network (risk)',
+      streams: 'In-stream risk concentration',
       catchment: 'Catchment boundary',
       points: 'Stream risk points',
       pourPoint: 'Pour point'
     };
+    // Reaches and points share one scale, so one ramp serves both: under the
+    // stream network, or under the points when they come without it.
+    var ramped = global.SCIMAP_MAP2D.hasVector('streams') ? 'streams' : 'points';
 
     Object.keys(labels).forEach(function (name) {
       if (!global.SCIMAP_MAP2D.hasVector(name)) return;
@@ -149,6 +146,11 @@
       row.appendChild(box);
       row.appendChild(make('span', null, labels[name]));
       host.appendChild(row);
+      // The ramp the reaches and points are drawn with, over the 5-95%
+      // stretch core/webexport.risk_stretch gave them.
+      if (name === ramped) {
+        host.appendChild(global.SCIMAP_REPORT.streamLegend((global.SCIMAP_VECTORS || {})[name]));
+      }
     });
   }
 
@@ -192,11 +194,7 @@
     $('save-map-screen').addEventListener('click', function () { saveMapImage('screen'); });
     $('save-map-print').addEventListener('click', function () { saveMapImage('print'); });
     describeMapImage();
-    $('print').addEventListener('click', function () {
-      prepareForPrint();
-      // One frame for Leaflet to request the tiles the new layout needs.
-      requestAnimationFrame(function () { setTimeout(function () { global.print(); }, 120); });
-    });
+    wirePrintMenu();
     $('theme').addEventListener('click', toggleTheme);
   }
 
@@ -441,8 +439,12 @@
         if (!item.visible && item.value === null) return;
         var row = make('div', 'probe-row' + (item.visible ? '' : ' dim'));
         row.appendChild(make('span', 'probe-label', item.label));
+        // Categorical layers read out their class name, not the code.
+        var named = item.classes && item.value !== null
+          ? item.classes.filter(function (cls) { return cls.code === Math.round(item.value); })[0]
+          : null;
         row.appendChild(make('span', 'probe-value',
-          global.SCIMAP.formatValue(item.value, 4)));
+          named ? named.label : global.SCIMAP.formatValue(item.value, 4)));
         host.appendChild(row);
       });
     }
@@ -648,10 +650,15 @@
    * watched as well; both run the same synchronous resize. */
   function prepareForPrint() {
     document.body.classList.add('printing');
+    prepareMainMap();
+    preparePrintLayers();
+  }
+
+  function prepareMainMap() {
     var target = $('print-map');
     if (!target || target.dataset.ready === 'yes') return;
     try {
-      var url = global.SCIMAP_MAP2D.renderStaticMap();
+      var url = global.SCIMAP_REPORT.reportMap();
       if (url) {
         target.src = url;
         target.dataset.ready = 'yes';
@@ -661,9 +668,90 @@
     }
   }
 
+  /** Each layer on a map of its own, after the main one, if the print menu
+   * asks for them. */
+  function preparePrintLayers() {
+    var host = $('print-layers');
+    if (!host) return;
+    if (!printAllMaps()) {
+      host.innerHTML = '';
+      delete host.dataset.ready;
+      return;
+    }
+    if (host.dataset.ready === 'yes') return;
+    try {
+      global.SCIMAP_REPORT.fillPrintLayers(host);
+      host.dataset.ready = 'yes';
+    } catch (error) {
+      console.error('Could not build the printable layer maps', error);
+    }
+  }
+
+  function printAllMaps() {
+    var box = $('print-all-maps');
+    return !box || box.checked;
+  }
+
   function invalidatePrintMap() {
     var target = $('print-map');
     if (target) delete target.dataset.ready;
+    var layers = $('print-layers');
+    if (layers) delete layers.dataset.ready;
+  }
+
+  // ── print menu ──────────────────────────────────────────────────────────
+
+  function wirePrintMenu() {
+    var button = $('print'), menu = $('print-menu');
+    function open(show) {
+      menu.classList.toggle('gone', !show);
+      button.setAttribute('aria-expanded', show ? 'true' : 'false');
+    }
+    button.addEventListener('click', function (event) {
+      event.stopPropagation();
+      open(menu.classList.contains('gone'));
+    });
+    menu.addEventListener('click', function (event) { event.stopPropagation(); });
+    document.addEventListener('click', function () { open(false); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') open(false);
+    });
+    $('print-all-maps').addEventListener('change', invalidatePrintMap);
+
+    $('print-go').addEventListener('click', function () {
+      open(false);
+      prepareForPrint();
+      // Wait for the composited maps to decode, then one frame for Leaflet to
+      // request the tiles the new layout needs.
+      var images = Array.prototype.slice.call(
+        document.querySelectorAll('#print-map[src], #print-layers img'));
+      Promise.all(images.map(function (image) {
+        return image.decode ? image.decode().catch(function () {}) : null;
+      })).then(function () {
+        requestAnimationFrame(function () { setTimeout(function () { global.print(); }, 120); });
+      });
+    });
+
+    $('save-markdown').addEventListener('click', function () {
+      var saveButton = $('save-markdown');
+      var label = saveButton.textContent;
+      saveButton.disabled = true;
+      saveButton.textContent = 'Building…';
+      // Yield first, or the button never repaints before the maps are drawn.
+      setTimeout(function () {
+        try {
+          var name = stem() + '-report';
+          save(URL.createObjectURL(global.SCIMAP_REPORT.markdownZip(name, printAllMaps())),
+               name + '.zip', true);
+          open(false);
+        } catch (error) {
+          console.error(error);
+          alert('Could not save the report: ' + (error.message || error));
+        }
+        saveButton.disabled = false;
+        saveButton.textContent = label;
+      }, 30);
+    });
   }
   function finishPrint() { document.body.classList.remove('printing'); }
 
