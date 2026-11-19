@@ -27,6 +27,7 @@
 
     try {
       fillHeader(meta);
+      showSomething();
       buildLayerRail();
       buildControls();
       buildCharts();
@@ -40,6 +41,8 @@
       // layers it actually managed to add.
       global.SCIMAP_MAP2D.create('map2d');
       buildVectorToggles();
+      // After the map too: it lists only the features the map holds.
+      global.SCIMAP_HELP.build({show: showFromHelp});
       // Compose the printable still now, while the page is idle. The map of
       // each layer waits for a print: there may be a dozen of them.
       setTimeout(prepareMainMap, 400);
@@ -49,6 +52,19 @@
       console.error(error);
       fail('Something went wrong building this dashboard: ' + error.message);
     }
+  }
+
+  /** If the map would open empty, the first raster layer on.
+   *
+   * The export starts every raster off when there is a stream network, for
+   * the map to open on the in-stream risk concentration; if the network then
+   * could not be added, nothing would show. */
+  function showSomething() {
+    var layers = global.SCIMAP.rasterLayers();
+    var streams = (global.SCIMAP_VECTORS || {}).streams;
+    var hasStreams = !!(streams && (streams.features || []).length);
+    var anyShown = layers.some(function (layer) { return layer.defaultVisible; });
+    if (!hasStreams && !anyShown && layers.length) layers[0].defaultVisible = true;
   }
 
   function fail(message) {
@@ -85,6 +101,10 @@
       toggle.checked = !!layer.defaultVisible;
       toggle.addEventListener('change', function () {
         global.SCIMAP.setLayerVisible(layer.key, toggle.checked);
+      });
+      // Switched from elsewhere too: Show on map in the Help view.
+      global.SCIMAP.on('layer-visibility', function (event) {
+        if (event.key === layer.key) toggle.checked = event.visible;
       });
 
       var label = make('label', 'layer-name', layer.label);
@@ -335,7 +355,23 @@
 
   // ── tabs ────────────────────────────────────────────────────────────────
 
-  var VIEWS = ['map', 'scene', 'charts', 'data', 'about'];
+  var VIEWS = ['map', 'scene', 'charts', 'data', 'about', 'help'];
+
+  /** Show on map, from the Help view: a result layer on its own, so it can be
+   * seen for what it is, or a set of features over whatever is already on. */
+  function showFromHelp(kind, key) {
+    if (kind === 'raster') {
+      global.SCIMAP.rasterLayers().forEach(function (layer) {
+        var wanted = layer.key === key;
+        if (!!global.SCIMAP.state.visible[layer.key] !== wanted) {
+          global.SCIMAP.setLayerVisible(layer.key, wanted);
+        }
+      });
+    } else if (!global.SCIMAP.state.vectors[key]) {
+      global.SCIMAP.setVectorVisible(key, true);
+    }
+    setView('map');
+  }
 
   function wireTabs() {
     Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (button) {

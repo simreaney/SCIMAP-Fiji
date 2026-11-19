@@ -13,7 +13,7 @@ html, body { height: auto; overflow: visible; background: #fff; color: #16181c; 
   --ink: #16181c; --ink-soft: #52514e; --ink-faint: #898781;
   --bg: #ffffff; --panel: #ffffff; --panel-solid: #ffffff;
   --edge: #e1e0d9; --edge-strong: #c3c2b7; --accent: #2a78d6; --shadow: none;
-  --driver-connectivity: #2a78d6; --driver-erosion: #eb6834; --driver-both: #1baf7a;
+  --driver-connectivity: #268bfc; --driver-erosion: #df500c; --driver-both: #ab61a5;
 }
 
 /* Swatches, bars and badges are backgrounds, which browsers drop from print
@@ -56,6 +56,7 @@ main { display: block; height: auto; }
    not fit under the title together both moved on, leaving page 1 blank. */
 #view-map { page-break-before: auto; }
 #view-scene { display: none !important; }   /* a live WebGL canvas prints unreliably */
+#view-help { display: none !important; }    /* about the page, not the results */
 
 /* The live Leaflet map is replaced by a still composited from the embedded
    data: a resized Leaflet requests its new tiles too late to be printed. */

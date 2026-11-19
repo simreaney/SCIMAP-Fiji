@@ -27,6 +27,7 @@
     <button data-view="charts">Analysis</button>
     <button data-view="data">Data</button>
     <button data-view="about">Provenance</button>
+    <button data-view="help">Help</button>
   </nav>
   <div class="masthead-meta">
     <span id="organisation"></span>
@@ -208,6 +209,195 @@
         <div id="provenance"></div>
       </div>
     </section>
+
+    <!-- The prose is here; the cards for this export's layers come from
+         scimap-help.js, and data-help-if sentences show only where they hold. -->
+    <section id="view-help" class="view scroll">
+      <div class="panel help-intro">
+        <h2>About this dashboard</h2>
+        <p class="panel-note">SCIMAP maps where diffuse pollution — fine sediment
+          and the nutrients and pathogens that travel with it — is most likely to
+          come from, and where in the river it is most likely to be felt. It asks
+          two questions of every part of the catchment: can the land give up
+          material, and will that material reach the river? The answers come
+          from the terrain, the land cover and the rainfall, so the method works
+          anywhere, with or without water quality monitoring.</p>
+        <nav class="help-contents" aria-label="Help contents">
+          <button class="ghost" data-help-target="help-approach">The approach</button>
+          <button class="ghost" data-help-target="help-layers">The layers</button>
+          <button class="ghost" data-help-target="help-workflow">Working through the results</button>
+          <button class="ghost" data-help-target="help-views">Finding your way around</button>
+          <button class="ghost" data-help-target="help-care">Reading the results with care</button>
+        </nav>
+      </div>
+
+      <div class="panel" id="help-approach">
+        <h2>The approach</h2>
+        <p class="panel-note">Four steps, each a layer you can switch on. The bar
+          under a step shows its colours on the map.</p>
+        <ol class="help-flow">
+          <li class="help-step">
+            <span class="help-step-n">1</span>
+            <h3>Erosion risk</h3>
+            <p class="help-question">Can the land give up material?</p>
+            <p>How hard running water can work on the ground — the slope times the
+              area draining through each cell — weighted by how vulnerable its
+              land cover is.</p>
+            <span class="help-ramp" data-ramp-layer="erosion"></span>
+          </li>
+          <li class="help-op" aria-hidden="true"><span>×</span></li>
+          <li class="help-step">
+            <span class="help-step-n">2</span>
+            <h3>Connectivity</h3>
+            <p class="help-question">Will it reach the river?</p>
+            <p>A cell is only as connected as the driest point on its route down
+              to the channel. Wetness comes from the terrain and the rainfall.</p>
+            <span class="help-ramp" data-ramp-layer="connectivity"></span>
+          </li>
+          <li class="help-op" aria-hidden="true"><span>=</span></li>
+          <li class="help-step">
+            <span class="help-step-n">3</span>
+            <h3>Source risk</h3>
+            <p class="help-question">What can each cell deliver?</p>
+            <p>Erosion risk × connectivity: high only where the land is both
+              erodible and connected. The critical source areas are its top
+              5%.</p>
+            <span class="help-ramp" data-ramp-layer="erosion_x_connectivity"></span>
+          </li>
+          <li class="help-op" aria-hidden="true"><span>→</span></li>
+          <li class="help-step">
+            <span class="help-step-n">4</span>
+            <h3>In-channel risk</h3>
+            <p class="help-question">How concentrated is it in the river?</p>
+            <p>Source risk added up downstream, divided by the rainfall-weighted
+              area upstream that dilutes it. High where risky, connected land
+              makes up much of what the water has drained.</p>
+            <span class="help-ramp" data-ramp-layer="streams"></span>
+          </li>
+        </ol>
+        <p class="help-text">Every score is relative: it ranks places within this
+          catchment, so the maps show where risk is concentrated rather than how
+          much pollution there is. Steps 1 and 2 are why two places with the same
+          land use can matter very differently: a ploughed field on a steep slope
+          that drains straight to a ditch is a problem, and the same field on a
+          flat hilltop, whose runoff must cross a long, well-drained slope to
+          reach a stream, mostly is not.</p>
+        <p class="help-text" data-help-if="flood">The flood layers follow the same
+          logic for water rather than sediment: where runoff is generated and how
+          quickly it reaches the river, across a set of rainfall patterns.</p>
+        <p class="help-text" data-help-if="nbs">The nature-based solutions layers
+          build on these results: a decision key reads each cell’s risk and
+          landscape position and recommends measures that fit it.</p>
+      </div>
+
+      <div class="panel" id="help-layers">
+        <h2>The layers in this dashboard</h2>
+        <p class="panel-note">Result layers are the gridded maps listed on the
+          left; features are drawn over them. <b>Show on map</b> switches a layer
+          on by itself and takes you to the map.</p>
+        <div id="help-layer-list" class="help-cards"></div>
+        <h3 id="help-feature-heading" class="help-subhead">Features</h3>
+        <div id="help-feature-list" class="help-cards"></div>
+      </div>
+
+      <div class="panel" id="help-workflow">
+        <h2>Working through the results</h2>
+        <p class="panel-note">One way from the river back to the land, and out to
+          the field.</p>
+        <ol class="help-steps">
+          <li><b>Find the reaches at risk.</b> The map opens on the stream network,
+            coloured by in-channel risk. Click the brightest, thickest reaches, or
+            open Analysis and look at Priority reaches.</li>
+          <li><b>Trace the risk to the land.</b> Switch on Erosion risk ×
+            connectivity and follow the high values upstream of those reaches:
+            that is the land delivering the risk.</li>
+          <li><b>Shortlist places to act.</b> Analysis, Where to act first, lists
+            the critical source areas: the patches of land holding most of the
+            source risk. Select one to go to it on the map.</li>
+          <li><b>Choose the kind of measure.</b> An area’s colour — or Erosion risk
+            and Network connectivity side by side — says whether to work on the
+            source (ground cover, soil management, land use) or the pathway
+            (buffer strips, hedges, ponds, breaking up flow routes).<span
+            data-help-if="nbs"> The nature-based solutions layers suggest a
+            specific measure for each place.</span></li>
+          <li><b>Check on the ground.</b> Plan a visit with the 3D view<span
+            data-help-if="online"> and the satellite basemap</span>. Local
+            knowledge and field survey confirm, or correct, what the model
+            suggests.</li>
+          <li><b>Share it.</b> Print a report or save it as Markdown, or pass on
+            the whole dashboard folder: it opens in any browser, offline.</li>
+        </ol>
+      </div>
+
+      <div class="panel" id="help-views">
+        <h2>Finding your way around</h2>
+        <dl class="help-views">
+          <dt>Map</dt>
+          <dd>Tick layers in the panel on the left: the one higher in the list is
+            drawn on top, and the slider under each fades it. Move the pointer
+            over the map to read every layer’s value at that spot (bottom left);
+            click to pin the reading. Click a reach for its rank and length.<span
+            data-help-if="online"> The layers button at the top right changes
+            the background: shaded relief works offline, the Esri maps need an
+            internet connection.</span> Save image keeps the map as you see it.</dd>
+          <dt>3D terrain</dt>
+          <dd>The same layers draped over the land. Drag to turn it, right-drag
+            to move it, scroll to zoom. Raise the vertical exaggeration to bring
+            out gentle relief, and move the sun to pick out slopes; the animated
+            flow traces water down the network. Save an image, or a 3D model to
+            view in AR on a phone or tablet or to 3D print.</dd>
+          <dt>Analysis</dt>
+          <dd>The catchment in figures. Where to act first lists the critical
+            source areas. Risk distribution and Risk concentration show how
+            evenly a layer is spread: the more the curve bows, the more of the
+            risk sits on a small share of the land, and the more targeting pays.
+            Wetness and connectivity plots every cell; Priority reaches ranks the
+            river. Select a row in either table to find it on the map.</dd>
+          <dt>Data</dt>
+          <dd>The results at full resolution in their original projection, to
+            open in a GIS.</dd>
+          <dt>Provenance</dt>
+          <dd>The inputs, land cover risk weights and settings behind the run, and
+            the paper describing the method. Check it before quoting the
+            results.</dd>
+          <dt>Print</dt>
+          <dd>A report as a PDF or on paper: the map as you left it, each layer on
+            a map of its own, the charts and the provenance. Save as Markdown gives
+            the same as text with the maps as images.</dd>
+        </dl>
+      </div>
+
+      <div class="panel" id="help-care">
+        <h2>Reading the results with care</h2>
+        <ul class="help-care">
+          <li><b>Relative, not absolute.</b> The scores rank places within this
+            catchment. They say where risk is concentrated, not how much
+            pollution there is, and are not comparable between dashboards made
+            from different runs.</li>
+          <li><b>Colours are stretched.</b> Each layer’s colours run between its
+            5th and 95th percentiles, so the top and bottom 5% share the end
+            colours. Move the pointer over the map to read the actual values.</li>
+          <li><b>As good as the inputs.</b> The elevation model, land cover,
+            rainfall and the risk weight given to each land cover all shape the
+            result; they are listed under Provenance. Field drains, culverts and
+            tracks that the elevation model cannot see are missing from the flow
+            routes.</li>
+          <li><b>One value per cell.</b> <span id="help-cell-text">Anything
+            smaller than a cell, such as a narrow buffer strip, is averaged in
+            with its surroundings.</span></li>
+          <li><b>A guide to where to look.</b> Use the maps to prioritise, alongside
+            local knowledge and field survey, not in place of them.</li>
+        </ul>
+
+        <h3 class="help-subhead">Reference</h3>
+        <p class="help-reference">Reaney, S.M., Lane, S.N., Heathwaite, A.L. and
+          Dugdale, L.J. (2011) ‘Risk-based modelling of diffuse land use impacts
+          from rural landscapes upon salmonid fry abundance’, <i>Ecological
+          Modelling</i>, 222(4), pp. 1016–1029. Available at: <a
+          href="https://doi.org/10.1016/j.ecolmodel.2010.08.022" target="_blank"
+          rel="noopener">https://doi.org/10.1016/j.ecolmodel.2010.08.022</a>.</p>
+      </div>
+    </section>
   </div>
 </main>
 
@@ -240,6 +430,7 @@
 <script src="assets/scimap-usdz.js"></script>
 <script src="assets/scimap-map3d.js"></script>
 <script src="assets/scimap-report.js"></script>
+<script src="assets/scimap-help.js"></script>
 <script src="assets/scimap-ui.js"></script>
 </body>
 </html>

@@ -261,8 +261,12 @@
   var state = {
     visible: {},          // layer key -> boolean
     opacity: {},          // layer key -> 0..1
+    // The map opens on the in-stream risk concentration: the stream network,
+    // with the catchment outline and pour point to place it. The critical
+    // source areas and every raster layer start off (core/dashboard.py
+    // choose_opening_layers); stream risk points are tens of thousands of markers.
     vectors: {streams: true, catchment: true, points: false, pourPoint: true,
-              priorityAreas: true},
+              priorityAreas: false},
     ramp: {},             // layer key -> ramp override (3D + legend only)
     sun: {azimuth: 315, altitude: 45},
     exaggeration: 1.5,
@@ -312,13 +316,14 @@
 
   /* What makes each critical source area critical (see core/csa.py), and its
    * colour wherever an area is drawn: map and 3D outlines, the printed map and
-   * the table. Three slots of a categorical palette checked for colour-blind
-   * separation; the table's own swatches take theme-stepped versions from
-   * app.css, and every use also says the driver in words. */
+   * the table. Blue, orange and purple, checked to stay apart under protan,
+   * deutan and tritan colour blindness and legible on either theme; app.css
+   * repeats them for the table's swatches (--driver-*), and core/styling.py
+   * for the QGIS layer. Every use also says the driver in words. */
   var DRIVERS = {
-    connectivity: {label: 'Connectivity', colour: '#2a78d6'},
-    erosion: {label: 'Erosion', colour: '#eb6834'},
-    both: {label: 'Both', colour: '#1baf7a'}
+    connectivity: {label: 'Connectivity', colour: '#268bfc'},
+    erosion: {label: 'Erosion', colour: '#df500c'},
+    both: {label: 'Both', colour: '#ab61a5'}
   };
 
   function driverOf(name) { return DRIVERS[name] || DRIVERS.both; }

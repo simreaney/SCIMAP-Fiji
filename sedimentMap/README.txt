@@ -18,4 +18,4 @@ What is here
 Browsers: Chrome, Edge, Firefox and Safari are all supported. The 3D view
 needs WebGL; the rest of the dashboard works without it.
 
-Generated 2026-11-18T14:56:22+00:00 by the SCIMAP QGIS plugin.
+Generated 2026-11-19T10:10:00+00:00 by the SCIMAP QGIS plugin.
